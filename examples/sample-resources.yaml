@@ -1,0 +1,124 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-app-sa
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-app-config
+  namespace: default
+data:
+  app.properties: |
+    key1=value1
+    key2=value2
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-secret
+  namespace: default
+type: Opaque
+data:
+  password: cGFzc3dvcmQ=
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: default
+  labels:
+    app: my-app
+    tier: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+        tier: frontend
+    spec:
+      serviceAccountName: my-app-sa
+      containers:
+      - name: nginx
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+        - name: secret
+          mountPath: /etc/secret
+      - name: sidecar
+        image: busybox:latest
+        command: ['sh', '-c', 'while true; do sleep 3600; done']
+      volumes:
+      - name: config
+        configMap:
+          name: my-app-config
+      - name: secret
+        secret:
+          secretName: my-app-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-service
+  namespace: default
+spec:
+  selector:
+    app: my-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: my-database
+  namespace: default
+  labels:
+    app: database
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: database
+  serviceName: database-service
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14
+        ports:
+        - containerPort: 5432
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: logging-agent
+  namespace: default
+  labels:
+    app: logging
+spec:
+  selector:
+    matchLabels:
+      app: logging
+  template:
+    metadata:
+      labels:
+        app: logging
+    spec:
+      containers:
+      - name: fluentd
+        image: fluentd:latest
