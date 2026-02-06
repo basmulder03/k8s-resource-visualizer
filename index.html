@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kubernetes Resource Visualizer</title>
-    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
     <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <script src="https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -142,9 +142,11 @@
             color: #326CE5;
         }
 
-        #cy {
+        #mermaid {
             flex: 1;
             background: white;
+            padding: 20px;
+            overflow: auto;
         }
 
         .error {
@@ -217,6 +219,11 @@
             background: #5a6268;
         }
 
+        .mermaid-output textarea {
+            min-height: 160px;
+            font-size: 11px;
+        }
+
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
@@ -232,7 +239,7 @@
 <body>
     <div class="header">
         <h1>🚀 Kubernetes Resource Visualizer</h1>
-        <p>Visualize your Kubernetes resources and their relationships in an interactive graph</p>
+        <p>Visualize your Kubernetes resources and their relationships in a Mermaid diagram</p>
     </div>
 
     <div class="container">
@@ -276,6 +283,14 @@ metadata:
                 <h3>Resource Summary</h3>
                 <div id="resourceCount" class="resource-count">
                     <div class="resource-badge">No resources loaded</div>
+                </div>
+            </div>
+
+            <div class="info-section mermaid-output">
+                <h3>Mermaid Markdown</h3>
+                <textarea id="mermaidOutput" readonly placeholder="Mermaid markdown will appear here after visualizing."></textarea>
+                <div class="button-group">
+                    <button class="secondary" onclick="copyMermaidMarkdown()">Copy Mermaid Markdown</button>
                 </div>
             </div>
 
@@ -324,7 +339,7 @@ metadata:
             </div>
         </div>
 
-        <div id="cy"></div>
+        <div id="mermaid" class="mermaid"></div>
     </div>
 
     <script src="app.js"></script>

@@ -4,7 +4,8 @@ A browser-based tool to visualize Kubernetes resources and their relationships a
 
 ## Features
 
-- 📊 **Interactive Graph Visualization** - See your Kubernetes resources and their relationships in a visual graph
+- 📊 **Mermaid Graph Visualization** - See your Kubernetes resources and their relationships in a Mermaid diagram
+- 🧾 **Mermaid Markdown Export** - View and copy the generated Mermaid markdown for documentation
 - 🔗 **Relationship Mapping** - Automatically detects relationships between:
   - Deployments → Pods → Containers
   - StatefulSets → Pods → Containers
@@ -104,13 +105,13 @@ The visualizer:
    - Spec references (e.g., `serviceAccountName`, volume mounts)
    - Label selectors (e.g., Service to Deployment matching)
    - Parent-child relationships (e.g., Deployment manages Pods)
-4. Renders an interactive graph using Cytoscape.js
+4. Renders a Mermaid diagram and markdown snippet for sharing
 
 ## Technology Stack
 
 - **HTML5/CSS3** - Modern, responsive UI
 - **JavaScript (Vanilla)** - No framework dependencies
-- **Cytoscape.js** - Graph visualization library
+- **Mermaid** - Diagram rendering library
 - **js-yaml** - YAML parsing library
 - **GitHub Pages** - Hosting
 
@@ -143,6 +144,6 @@ MIT License - feel free to use this tool for any purpose.
 
 ## Acknowledgments
 
-- Built with [Cytoscape.js](https://js.cytoscape.org/)
+- Built with [Mermaid](https://mermaid.js.org/)
 - YAML parsing by [js-yaml](https://github.com/nodeca/js-yaml)
 - Inspired by the need for better Kubernetes resource visualization
