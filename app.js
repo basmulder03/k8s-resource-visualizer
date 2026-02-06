@@ -17,7 +17,10 @@ function initializeMermaid() {
     }
     mermaid.initialize({
         startOnLoad: false,
-        securityLevel: 'strict'
+        securityLevel: 'strict',
+        flowchart: {
+            htmlLabels: true
+        }
     });
 }
 
@@ -210,12 +213,20 @@ function buildMermaidDiagram(resources) {
 
     const lines = ['flowchart TD'];
     const classNames = new Map();
+    const usedClassNames = new Set();
 
     nodes.forEach(node => {
         lines.push(`  ${node.id}["${node.label}"]`);
-        const className = sanitizeMermaidClass(node.kind);
         if (!classNames.has(node.kind)) {
+            const baseClassName = sanitizeMermaidClass(node.kind);
+            let className = baseClassName;
+            let suffix = 1;
+            while (usedClassNames.has(className)) {
+                suffix += 1;
+                className = `${baseClassName}${suffix}`;
+            }
             classNames.set(node.kind, className);
+            usedClassNames.add(className);
         }
     });
 
