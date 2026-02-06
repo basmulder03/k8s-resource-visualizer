@@ -86,7 +86,7 @@ function buildMermaidDiagram(resources) {
     };
 
     const formatLabel = (kind, name) => {
-        return `${escapeMermaidLabel(kind)}\\n${escapeMermaidLabel(name)}`;
+        return `${escapeMermaidLabel(kind)}<br/>${escapeMermaidLabel(name)}`;
     };
 
     // Process each resource
@@ -284,12 +284,15 @@ function escapeMermaidLabel(text) {
 }
 
 function escapeMermaidEdgeLabel(text) {
-    return escapeMermaidLabel(text).replace(/\|/g, '-');
+    return escapeMermaidLabel(text).replace(/\|/g, ':');
 }
 
 function sanitizeMermaidClass(kind) {
     const sanitized = String(kind).toLowerCase().replace(/[^a-z0-9]/g, '');
-    return sanitized || 'resource';
+    if (!sanitized) {
+        return 'resource';
+    }
+    return /^\d/.test(sanitized) ? `k${sanitized}` : sanitized;
 }
 
 // Get color for resource kind
