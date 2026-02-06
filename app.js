@@ -86,7 +86,7 @@ function buildMermaidDiagram(resources) {
     };
 
     const formatLabel = (kind, name) => {
-        return `${escapeMermaidLabel(kind)}<br/>${escapeMermaidLabel(name)}`;
+        return `${escapeMermaidLabel(kind)}\\n${escapeMermaidLabel(name)}`;
     };
 
     // Process each resource
@@ -279,7 +279,8 @@ function escapeMermaidLabel(text) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function escapeMermaidEdgeLabel(text) {
@@ -377,11 +378,35 @@ function copyMermaidMarkdown() {
         return;
     }
 
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        fallbackCopyText(mermaidText, 'Mermaid markdown copied to clipboard!');
+        return;
+    }
+
     navigator.clipboard.writeText(mermaidText).then(() => {
         showMessage('Mermaid markdown copied to clipboard!', 'success');
     }).catch(() => {
-        prompt('Copy this Mermaid markdown:', mermaidText);
+        fallbackCopyText(mermaidText, 'Mermaid markdown copied to clipboard!');
     });
+}
+
+function fallbackCopyText(text, successMessage) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    const success = document.execCommand('copy');
+    document.body.removeChild(textarea);
+
+    if (success) {
+        showMessage(successMessage, 'success');
+    } else {
+        showMessage('Copy failed. Select the text and copy manually.', 'error');
+    }
 }
 
 // Load YAML from URL parameter
