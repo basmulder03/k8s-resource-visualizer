@@ -283,7 +283,7 @@ function escapeMermaidLabel(text) {
 }
 
 function escapeMermaidEdgeLabel(text) {
-    return escapeMermaidLabel(text).replace(/\|/g, '/');
+    return escapeMermaidLabel(text).replace(/\|/g, '-');
 }
 
 function sanitizeMermaidClass(kind) {
