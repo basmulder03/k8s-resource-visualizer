@@ -275,12 +275,14 @@ function updateMermaidMarkdown(diagram) {
 }
 
 function escapeMermaidLabel(text) {
-    return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    const escapes = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+    return String(text).replace(/[&<>"']/g, char => escapes[char]);
 }
 
 function escapeMermaidEdgeLabel(text) {
