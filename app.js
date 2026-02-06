@@ -1,68 +1,23 @@
 // Kubernetes Resource Visualizer - Main Application Logic
 
-let cy; // Cytoscape instance
 let resources = []; // Parsed Kubernetes resources
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
-    initializeCytoscape();
+    initializeMermaid();
     loadFromURL();
     setupFileInput();
 });
 
-// Initialize Cytoscape graph
-function initializeCytoscape() {
-    cy = cytoscape({
-        container: document.getElementById('cy'),
-        
-        style: [
-            {
-                selector: 'node',
-                style: {
-                    'label': 'data(label)',
-                    'text-valign': 'center',
-                    'text-halign': 'center',
-                    'background-color': 'data(color)',
-                    'color': '#fff',
-                    'text-outline-color': 'data(color)',
-                    'text-outline-width': 2,
-                    'font-size': '12px',
-                    'width': 'data(size)',
-                    'height': 'data(size)',
-                    'font-weight': 'bold'
-                }
-            },
-            {
-                selector: 'edge',
-                style: {
-                    'width': 2,
-                    'line-color': '#94a3b8',
-                    'target-arrow-color': '#94a3b8',
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier',
-                    'label': 'data(label)',
-                    'font-size': '10px',
-                    'color': '#64748b',
-                    'text-background-color': '#fff',
-                    'text-background-opacity': 0.8,
-                    'text-background-padding': '3px'
-                }
-            },
-            {
-                selector: ':selected',
-                style: {
-                    'border-width': 3,
-                    'border-color': '#000'
-                }
-            }
-        ],
-        
-        layout: {
-            name: 'breadthfirst',
-            directed: true,
-            spacingFactor: 1.5,
-            padding: 30
-        }
+// Initialize Mermaid rendering
+function initializeMermaid() {
+    if (typeof mermaid === 'undefined' || typeof mermaid.initialize !== 'function') {
+        showMessage('Mermaid failed to load', 'error');
+        return;
+    }
+    mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict'
     });
 }
 
@@ -83,7 +38,9 @@ function visualize() {
             return;
         }
 
-        buildGraph(resources);
+        const diagram = buildMermaidDiagram(resources);
+        renderMermaid(diagram);
+        updateMermaidMarkdown(diagram);
         updateResourceCount(resources);
         showMessage(`Successfully visualized ${resources.length} resource(s)`, 'success');
         
@@ -107,87 +64,88 @@ function parseKubernetesYAML(yamlText) {
     return resources;
 }
 
-// Build the graph from resources
-function buildGraph(resources) {
-    cy.elements().remove();
-    
-    const elements = [];
+// Build Mermaid diagram from resources
+function buildMermaidDiagram(resources) {
     const nodes = new Map();
     const edges = [];
-    
+    let nodeIndex = 0;
+
+    const ensureNode = (key, label, kind) => {
+        if (!nodes.has(key)) {
+            nodeIndex += 1;
+            nodes.set(key, {
+                id: `node${nodeIndex}`,
+                label: label,
+                kind: kind
+            });
+        }
+        return nodes.get(key).id;
+    };
+
+    const formatLabel = (kind, name) => {
+        return `${escapeMermaidLabel(kind)}<br/>${escapeMermaidLabel(name)}`;
+    };
+
     // Process each resource
     resources.forEach(resource => {
         const kind = resource.kind;
         const name = resource.metadata?.name || 'unnamed';
         const namespace = resource.metadata?.namespace || 'default';
-        const nodeId = `${kind}/${namespace}/${name}`;
-        
-        // Add main resource node
-        nodes.set(nodeId, {
-            id: nodeId,
-            label: `${kind}\n${name}`,
-            kind: kind,
-            color: getColorForKind(kind),
-            size: getSizeForKind(kind)
-        });
-        
+        const nodeKey = `${kind}/${namespace}/${name}`;
+        const nodeId = ensureNode(nodeKey, formatLabel(kind, name), kind);
+
         // Handle Deployment
         if (kind === 'Deployment' || kind === 'StatefulSet' || kind === 'DaemonSet') {
             const replicas = resource.spec?.replicas || 1;
             const template = resource.spec?.template;
-            
+
             // Create pod nodes
             for (let i = 0; i < Math.min(replicas, 5); i++) {
-                const podId = `Pod/${namespace}/${name}-pod-${i}`;
-                nodes.set(podId, {
-                    id: podId,
-                    label: `Pod\n${name}-${i}`,
-                    kind: 'Pod',
-                    color: getColorForKind('Pod'),
-                    size: 40
-                });
-                
+                const podName = `${name}-${i}`;
+                const podKey = `Pod/${namespace}/${name}-pod-${i}`;
+                const podId = ensureNode(podKey, formatLabel('Pod', podName), 'Pod');
+
                 edges.push({
                     source: nodeId,
                     target: podId,
                     label: 'manages'
                 });
-                
+
                 // Process containers
                 const containers = template?.spec?.containers || [];
-                containers.forEach((container, cIdx) => {
-                    const containerId = `Container/${namespace}/${name}-pod-${i}-${container.name}`;
-                    nodes.set(containerId, {
-                        id: containerId,
-                        label: `Container\n${container.name}`,
-                        kind: 'Container',
-                        color: getColorForKind('Container'),
-                        size: 30
-                    });
-                    
+                containers.forEach(container => {
+                    const containerKey = `Container/${namespace}/${name}-pod-${i}-${container.name}`;
+                    const containerId = ensureNode(
+                        containerKey,
+                        formatLabel('Container', container.name),
+                        'Container'
+                    );
+
                     edges.push({
                         source: podId,
                         target: containerId,
                         label: 'contains'
                     });
                 });
-                
+
                 // Link to ServiceAccount
                 const serviceAccountName = template?.spec?.serviceAccountName;
                 if (serviceAccountName) {
-                    const saId = `ServiceAccount/${namespace}/${serviceAccountName}`;
+                    const saKey = `ServiceAccount/${namespace}/${serviceAccountName}`;
+                    const saId = ensureNode(saKey, formatLabel('ServiceAccount', serviceAccountName), 'ServiceAccount');
                     edges.push({
                         source: podId,
                         target: saId,
                         label: 'uses'
                     });
                 }
-                
-                // Link to ConfigMaps
+
+                // Link to ConfigMaps and Secrets
                 const volumes = template?.spec?.volumes || [];
                 volumes.forEach(volume => {
                     if (volume.configMap) {
-                        const cmId = `ConfigMap/${namespace}/${volume.configMap.name}`;
+                        const cmKey = `ConfigMap/${namespace}/${volume.configMap.name}`;
+                        const cmId = ensureNode(cmKey, formatLabel('ConfigMap', volume.configMap.name), 'ConfigMap');
                         edges.push({
                             source: podId,
                             target: cmId,
@@ -195,7 +153,12 @@ function buildGraph(resources) {
                         });
                     }
                     if (volume.secret) {
-                        const secretId = `Secret/${namespace}/${volume.secret.secretName}`;
+                        const secretKey = `Secret/${namespace}/${volume.secret.secretName}`;
+                        const secretId = ensureNode(
+                            secretKey,
+                            formatLabel('Secret', volume.secret.secretName),
+                            'Secret'
+                        );
                         edges.push({
                             source: podId,
                             target: secretId,
@@ -204,24 +167,19 @@ function buildGraph(resources) {
                     }
                 });
             }
-            
+
             if (replicas > 5) {
-                const moreNodeId = `${nodeId}-more`;
-                nodes.set(moreNodeId, {
-                    id: moreNodeId,
-                    label: `... +${replicas - 5} more pods`,
-                    kind: 'Pod',
-                    color: '#cbd5e1',
-                    size: 35
-                });
+                const moreKey = `${nodeKey}-more`;
+                const moreLabel = `... +${replicas - 5} more pods`;
+                const moreId = ensureNode(moreKey, escapeMermaidLabel(moreLabel), 'Pod');
                 edges.push({
                     source: nodeId,
-                    target: moreNodeId,
+                    target: moreId,
                     label: ''
                 });
             }
         }
-        
+
         // Handle Service
         if (kind === 'Service') {
             const selector = resource.spec?.selector || {};
@@ -231,9 +189,14 @@ function buildGraph(resources) {
                 if (['Deployment', 'StatefulSet', 'DaemonSet'].includes(otherResource.kind)) {
                     const labels = otherResource.metadata?.labels || {};
                     const matches = Object.keys(selector).every(key => labels[key] === selector[key]);
-                    
+
                     if (matches && Object.keys(selector).length > 0) {
-                        const targetId = `${otherResource.kind}/${otherResource.metadata?.namespace || 'default'}/${otherResource.metadata?.name}`;
+                        const targetKey = `${otherResource.kind}/${otherResource.metadata?.namespace || 'default'}/${otherResource.metadata?.name}`;
+                        const targetId = ensureNode(
+                            targetKey,
+                            formatLabel(otherResource.kind, otherResource.metadata?.name || 'unnamed'),
+                            otherResource.kind
+                        );
                         edges.push({
                             source: nodeId,
                             target: targetId,
@@ -244,32 +207,77 @@ function buildGraph(resources) {
             });
         }
     });
-    
-    // Convert nodes Map to array
+
+    const lines = ['flowchart TD'];
+    const classNames = new Map();
+
     nodes.forEach(node => {
-        elements.push({ data: node });
+        lines.push(`  ${node.id}["${node.label}"]`);
+        const className = sanitizeMermaidClass(node.kind);
+        if (!classNames.has(node.kind)) {
+            classNames.set(node.kind, className);
+        }
     });
-    
-    // Add edges
+
     edges.forEach(edge => {
-        elements.push({ data: edge });
+        const label = escapeMermaidEdgeLabel(edge.label);
+        if (label) {
+            lines.push(`  ${edge.source} -->|${label}| ${edge.target}`);
+        } else {
+            lines.push(`  ${edge.source} --> ${edge.target}`);
+        }
     });
-    
-    // Add elements to graph
-    cy.add(elements);
-    
-    // Apply layout
-    cy.layout({
-        name: 'breadthfirst',
-        directed: true,
-        spacingFactor: 1.5,
-        padding: 30,
-        animate: true,
-        animationDuration: 500
-    }).run();
-    
-    // Fit to viewport
-    cy.fit(50);
+
+    classNames.forEach((className, kind) => {
+        const color = getColorForKind(kind);
+        lines.push(`  classDef ${className} fill:${color},stroke:${color},color:#fff`);
+    });
+
+    nodes.forEach(node => {
+        const className = classNames.get(node.kind);
+        if (className) {
+            lines.push(`  class ${node.id} ${className}`);
+        }
+    });
+
+    return lines.join('\n');
+}
+
+function renderMermaid(diagram) {
+    const mermaidContainer = document.getElementById('mermaid');
+    if (typeof mermaid === 'undefined' || typeof mermaid.run !== 'function') {
+        mermaidContainer.textContent = diagram;
+        return;
+    }
+    mermaidContainer.removeAttribute('data-processed');
+    mermaidContainer.textContent = diagram;
+
+    mermaid.run({ nodes: [mermaidContainer] }).catch(error => {
+        showMessage('Error rendering Mermaid diagram', 'error');
+        console.error(error);
+    });
+}
+
+function updateMermaidMarkdown(diagram) {
+    const output = document.getElementById('mermaidOutput');
+    output.value = `\`\`\`mermaid\n${diagram}\n\`\`\``;
+}
+
+function escapeMermaidLabel(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function escapeMermaidEdgeLabel(text) {
+    return escapeMermaidLabel(text).replace(/\|/g, '/');
+}
+
+function sanitizeMermaidClass(kind) {
+    const sanitized = String(kind).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return sanitized || 'resource';
 }
 
 // Get color for resource kind
@@ -290,23 +298,6 @@ function getColorForKind(kind) {
     };
     
     return colors[kind] || '#94A3B8';
-}
-
-// Get size for resource kind
-function getSizeForKind(kind) {
-    const sizes = {
-        'Deployment': 60,
-        'StatefulSet': 60,
-        'DaemonSet': 60,
-        'Service': 55,
-        'Pod': 40,
-        'Container': 30,
-        'ServiceAccount': 50,
-        'ConfigMap': 45,
-        'Secret': 45
-    };
-    
-    return sizes[kind] || 50;
 }
 
 // Update resource count display
@@ -366,6 +357,22 @@ function shareURL() {
     }
 }
 
+// Copy Mermaid markdown to clipboard
+function copyMermaidMarkdown() {
+    const mermaidText = document.getElementById('mermaidOutput').value;
+
+    if (!mermaidText.trim()) {
+        showMessage('No Mermaid markdown to copy yet', 'error');
+        return;
+    }
+
+    navigator.clipboard.writeText(mermaidText).then(() => {
+        showMessage('Mermaid markdown copied to clipboard!', 'success');
+    }).catch(() => {
+        prompt('Copy this Mermaid markdown:', mermaidText);
+    });
+}
+
 // Load YAML from URL parameter
 function loadFromURL() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -387,7 +394,8 @@ function loadFromURL() {
 function clearAll() {
     document.getElementById('yamlInput').value = '';
     resources = [];
-    cy.elements().remove();
+    document.getElementById('mermaid').textContent = '';
+    document.getElementById('mermaidOutput').value = '';
     document.getElementById('resourceCount').innerHTML = '<div class="resource-badge">No resources loaded</div>';
     document.getElementById('message').textContent = '';
 }
